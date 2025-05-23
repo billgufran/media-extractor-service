@@ -23,7 +23,14 @@ async def extract_text_from_image(file: UploadFile):
         }
 
         response = requests.post(VISION_ENDPOINT, json=request_body)
+
+        if response.status_code != 200:
+            return {"error": f"OCR failed with status code {response.status_code}: {response.text}"}
+
         result = response.json()
+
+        if "error" in result:
+            return {"error": result["error"], "raw": result}
 
         text = result["responses"][0].get("fullTextAnnotation", {}).get("text", "")
         return {"text": text}
