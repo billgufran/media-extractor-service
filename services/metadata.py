@@ -1,5 +1,3 @@
-# services/metadata.py
-
 import os
 import requests
 
