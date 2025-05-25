@@ -2,7 +2,7 @@ import os
 import requests
 import json
 from pydantic import BaseModel
-from typing import Literal, Any, NotRequired, Dict, TypedDict, Optional
+from typing import Literal, Optional
 
 from models.response import ErrorResponse
 
@@ -10,31 +10,31 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL = "google/gemma-3n-e4b-it:free"
 
 class MediaItem(BaseModel):
-    type: Literal["movie", "book"]
+    type: Literal["movie", "book" , "tv"]
     title: str
-    author: Optional[str]
-    year: Optional[int]
+    author: Optional[str] = None
+    year: Optional[int] = None
 
 def extract_title_with_llm(text: str) -> list[MediaItem] | ErrorResponse:
     try:
         prompt = f"""
             You are given OCR-extracted text from an image. Your task is to:
 
-            1. Identify all **movie** or **book** titles mentioned.
-            2. Extract the **exact title** of the movie or book.
-            3. Classify each title as either `"movie"` or `"book"` based on context.
-            4. If the title is a movie, extract the year of release if known. Otherwise, omit the year.
+            1. Identify all **movie**, **tv**, or **book** titles mentioned.
+            2. Extract the **exact title** of the movie, tv, or book.
+            3. Classify each title as either `"movie"`, `tv`, or `"book"` based on context.
+            4. If the title is a movie or tv, extract the year of release if known. Otherwise, omit the year.
             5. If the title is a book, extract the author if known. Otherwise, omit the author.
             6. If a title could be both (e.g. *The Lord of the Rings*), use surrounding context to make your best guess.
-            7. Return the result as a raw text **JSON array** in this exact format without any surrounding text, explanations, or markdown formatting.:
+            7. Return the result as a raw text **JSON array** in this exact format without any surrounding text, explanations, or markdown formatting:
 
             [
-                {
-                    "type": "movie" | "book",
+                {{
+                    "type": "movie" | "tv" | "book",
                     "title": "<exact title>",
                     "author": "<exact author>",
                     "year": "<exact year>"
-                }
+                }}
             ]
 
             Begin with this text:

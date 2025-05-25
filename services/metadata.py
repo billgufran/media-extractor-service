@@ -2,21 +2,92 @@ import os
 import requests
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
-GOOGLE_BOOKS_API = "https://www.googleapis.com/books/v1/volumes"
+GOOGLE_BOOKS_API_URL = "https://www.googleapis.com/books/v1/volumes"
+TMDB_API_URL = "https://api.themoviedb.org/3"
 
-def fetch_metadata(media_type: str, title: str):
+
+def fetch_movie_metadata(title: str, year: int | None = None):
     try:
-        if media_type == "movie":
-            tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={title}"
-            res = requests.get(tmdb_url).json()
-            results = res.get("results", [])
-            return results[0] if results else {}
-        elif media_type == "book":
-            params = {"q": title}
-            res = requests.get(GOOGLE_BOOKS_API, params=params).json()
-            items = res.get("items", [])
-            return items[0] if items else {}
+        req_url = f"{TMDB_API_URL}/search/movie?api_key={TMDB_API_KEY}&query={title}"
+
+        if year:
+            req_url += f"&year={year}"
+
+        res = requests.get(req_url).json()
+        items = res.get("results", [])
+
+        if items and items[0]:
+            return {
+                "title": items[0].get("title", ""),
+                "description": items[0].get("overview", ""),
+                "year": items[0].get("release_date", ""),
+            }
         else:
             return {}
+
     except Exception as e:
         return {"error": f"Metadata lookup failed: {str(e)}"}
+
+
+def fetch_tv_metadata(title: str, year: int | None = None):
+    try:
+        req_url = f"{TMDB_API_URL}/search/tv?api_key={TMDB_API_KEY}&query={title}"
+
+        if year:
+            req_url += f"&year={year}"
+
+        res = requests.get(req_url).json()
+        items = res.get("results", [])
+
+        if items and items[0]:
+            return {
+                "title": items[0].get("title", ""),
+                "description": items[0].get("overview", ""),
+            }
+        else:
+            return {}
+
+    except Exception as e:
+        return {"error": f"Metadata lookup failed: {str(e)}"}
+
+
+def fetch_book_metadata(title: str, author: str | None = None):
+    try:
+        req_url = f"{GOOGLE_BOOKS_API_URL}?q={title}"
+
+        if author:
+            req_url += f"+inauthor:{author}"
+
+        res = requests.get(req_url).json()
+        items = res.get("items", [])
+
+        if items and items[0]:
+            return {
+                "title": items[0].get("volumeInfo", {}).get("title", ""),
+                "author": items[0].get("volumeInfo", {}).get("authors", []).join(", "),
+                "description": items[0].get("volumeInfo", {}).get("description", ""),
+                "year": items[0].get("volumeInfo", {}).get("publishedDate", ""),
+            }
+        else:
+            return {}
+
+    except Exception as e:
+        return {"error": f"Metadata lookup failed: {str(e)}"}
+
+
+def fetch_metadata(
+    media_type: str, title: str, year: int | None = None, author: str | None = None
+):
+    metadata = {}
+
+    if media_type == "movie":
+        metadata = fetch_movie_metadata(title, year)
+    elif media_type == "tv":
+        metadata = fetch_tv_metadata(title, year)
+    elif media_type == "book":
+        metadata = fetch_book_metadata(title, author)
+
+    return {
+        **metadata,
+        "type": media_type,
+    }
