@@ -65,3 +65,7 @@ async def extract_info(file: UploadFile = File(...), _auth=Depends(authorize)):
         "year": metadata.get("year"),
         "description": metadata.get("description"),
     } for metadata in metadatas]
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=3005, reload=True)
