@@ -1,9 +1,11 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Depends
 from dotenv import load_dotenv
 import os
 from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from models.response import ErrorResponse
+
+from app.auth import authorize
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
@@ -18,7 +20,7 @@ async def check():
     return {"message": "Hello World"}
 
 @app.post("/extract")
-async def extract_info(file: UploadFile = File(...)):
+async def extract_info(file: UploadFile = File(...), _auth=Depends(authorize)):
     full_text = await extract_text_from_image(file)
 
     if "error" in full_text:
