@@ -18,7 +18,7 @@ def fetch_movie_metadata(title: str, year: int | None = None):
 
         if items and items[0]:
             return {
-                "title": items[0].get("title", ""),
+                "title": items[0].get("title", title),
                 "description": items[0].get("overview", ""),
                 "year": items[0].get("release_date", ""),
             }
@@ -41,7 +41,7 @@ def fetch_tv_metadata(title: str, year: int | None = None):
 
         if items and items[0]:
             return {
-                "title": items[0].get("title", ""),
+                "title": items[0].get("name", title),
                 "description": items[0].get("overview", ""),
             }
         else:
@@ -61,10 +61,12 @@ def fetch_book_metadata(title: str, author: str | None = None):
         res = requests.get(req_url).json()
         items = res.get("items", [])
 
+        joined_authors = ", ".join(items[0].get("volumeInfo", {}).get("authors", []))
+
         if items and items[0]:
             return {
-                "title": items[0].get("volumeInfo", {}).get("title", ""),
-                "author": items[0].get("volumeInfo", {}).get("authors", []).join(", "),
+                "title": items[0].get("volumeInfo", {}).get("title", title),
+                "author": joined_authors,
                 "description": items[0].get("volumeInfo", {}).get("description", ""),
                 "year": items[0].get("volumeInfo", {}).get("publishedDate", ""),
             }
@@ -87,7 +89,14 @@ def fetch_metadata(
     elif media_type == "book":
         metadata = fetch_book_metadata(title, author)
 
+    # print("metadata", metadata)
+
+    metadata_title = metadata.get("title")
+    resolved_title = metadata_title if metadata_title is not None else title
+
     return {
         **metadata,
+        "title": resolved_title,
         "type": media_type,
+        "description": metadata.get("description", ""),
     }

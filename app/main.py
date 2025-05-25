@@ -46,8 +46,9 @@ async def extract_info(file: UploadFile = File(...), _auth=Depends(authorize)):
         metadata = fetch_metadata(
             media_type=media_item.type,
             title=media_item.title,
-            year=media_item.year,
-            author=media_item.author,
+            # Commenting because LLM is not always returning the right info
+            # year=media_item.year
+            # author=media_item.author,
         )
         if metadata.get("title"):
           metadatas.append(metadata)
