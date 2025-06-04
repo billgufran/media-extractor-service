@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -19,8 +19,8 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # Copy project files
 COPY . .
 
-# Expose port
+# Expose port (Cloud Run expects 3005)
 EXPOSE 3005
 
-# Start FastAPI app with Uvicorn
+# Start FastAPI app with Uvicorn on port 3005
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3005"]

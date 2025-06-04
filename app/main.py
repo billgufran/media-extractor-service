@@ -68,4 +68,5 @@ async def extract_info(file: UploadFile = File(...), _auth=Depends(authorize)):
 
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.getenv("PORT", 3005))
     uvicorn.run("app.main:app", host="0.0.0.0", port=3005, reload=True)
