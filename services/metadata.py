@@ -61,13 +61,16 @@ def fetch_book_metadata(title: str, author: str | None = None):
         res = requests.get(req_url).json()
         items = res.get("items", [])
 
-        joined_authors = ", ".join(items[0].get("volumeInfo", {}).get("authors", []))
-
         if items and items[0]:
+            joined_authors = ", ".join(
+                items[0].get("volumeInfo", {}).get("authors", [])
+            )
             return {
                 "title": items[0].get("volumeInfo", {}).get("title", title),
                 "author": joined_authors,
-                "description": items[0].get("volumeInfo", {}).get("description", ""),
+                "description": items[0].get("volumeInfo", {}).get(
+                    "description", ""
+                ),
                 "year": items[0].get("volumeInfo", {}).get("publishedDate", ""),
             }
         else:
