@@ -1,13 +1,11 @@
-import os
-import requests
 import json
 from pydantic import BaseModel
 from typing import Literal, Optional
+from langchain.schema import HumanMessage
+from services.llm_client import llm
 
 from models.response import ErrorResponse
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL = "google/gemma-3n-e4b-it:free"
 
 class MediaItem(BaseModel):
     type: Literal["movie", "book" , "tv"]
@@ -42,29 +40,9 @@ def extract_title_with_llm(text: str) -> list[MediaItem] | ErrorResponse:
             {text}
             """
 
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-        }
+        response = llm.invoke([HumanMessage(content=prompt)])
 
-        payload = {
-            "model": MODEL,
-            "messages": [
-                {"role": "user", "content": prompt},
-            ],
-        }
-
-        res = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=payload,
-        )
-        res_json = res.json()
-
-        if "error" in res_json:
-            return ErrorResponse(error=res_json["error"], raw=res_json)
-
-        content = res_json["choices"][0]["message"]["content"]
+        content = response.content
 
         cleaned_content = content.strip("```").lstrip("json")
 
