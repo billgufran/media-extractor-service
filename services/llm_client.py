@@ -1,7 +1,8 @@
 import os
+from pydantic import SecretStr
 from langchain_openai import ChatOpenAI
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_API_KEY: SecretStr = SecretStr(os.getenv("OPENROUTER_API_KEY", ""))
 MODEL = "google/gemma-3n-e4b-it:free"
 
 # Shared ChatOpenAI instance for reuse across services

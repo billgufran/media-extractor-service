@@ -42,9 +42,12 @@ def extract_title_with_llm(text: str) -> list[MediaItem] | ErrorResponse:
 
         response = llm.invoke([HumanMessage(content=prompt)])
 
-        content = response.content
+        content = getattr(response, "content", response)
 
-        cleaned_content = content.strip("```").lstrip("json")
+        if not isinstance(content, str):
+            content = str(content)
+
+        cleaned_content = content.strip("`").lstrip("json").strip()
 
         try:
             return json.loads(cleaned_content)
