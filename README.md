@@ -20,6 +20,21 @@ Media Extractor Service is a FastAPI application that extracts text from images,
    ```
    The API will be available at `http://localhost:3005`.
 
+## API Usage
+
+### `POST /extract`
+
+Send a multipart request containing a file, a query string, or both. At least one of them must be provided.
+
+Form fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | File | Image file containing text (optional) |
+| `query` | string | Additional text query (optional) |
+
+If both fields are supplied, the text extracted from the file is concatenated with the query before being processed.
+
 ## Roadmap
 
 1. Release branch
