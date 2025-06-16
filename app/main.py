@@ -31,20 +31,20 @@ async def extract_info(
             content={"error": "Either 'file' or 'query' must be provided."},
         )
 
-    text = ""
+    full_text = ""
 
     if file is not None:
-        full_text = await extract_text_from_image(file)
+        extracted_text = await extract_text_from_image(file)
 
-        if "error" in full_text:
-            return JSONResponse(status_code=500, content=full_text)
+        if "error" in extracted_text:
+            return JSONResponse(status_code=500, content=extracted_text)
 
-        text = full_text["text"]
+        full_text = extracted_text["text"]
 
     if query:
-        text = f"{text} {query}".strip()
+        full_text = f"{query} {full_text}".strip()
 
-    llm_result = extract_title_with_llm(text)
+    llm_result = extract_title_with_llm(full_text)
 
     if llm_result is None:
         return JSONResponse(status_code=500, content=llm_result)
