@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Depends
+from fastapi import FastAPI, File, UploadFile, Depends, Form
 from dotenv import load_dotenv
 import os
 from pydantic import ValidationError
@@ -20,13 +20,31 @@ async def check():
     return {"message": "Hello World"}
 
 @app.post("/extract")
-async def extract_info(file: UploadFile = File(...), _auth=Depends(authorize)):
-    full_text = await extract_text_from_image(file)
+async def extract_info(
+    file: UploadFile = File(None),
+    query: str | None = Form(None),
+    _auth=Depends(authorize),
+):
+    if file is None and (query is None or query == ""):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Either 'file' or 'query' must be provided."},
+        )
 
-    if "error" in full_text:
-        return JSONResponse(status_code=500, content=full_text)
+    full_text = ""
 
-    llm_result = extract_title_with_llm(full_text["text"])
+    if file is not None:
+        extracted_text = await extract_text_from_image(file)
+
+        if "error" in extracted_text:
+            return JSONResponse(status_code=500, content=extracted_text)
+
+        full_text = extracted_text["text"]
+
+    if query:
+        full_text = f"{query} {full_text}".strip()
+
+    llm_result = extract_title_with_llm(full_text)
 
     if llm_result is None:
         return JSONResponse(status_code=500, content=llm_result)
