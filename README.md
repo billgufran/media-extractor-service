@@ -6,7 +6,7 @@ Metadata lookups first query the Wikipedia search API to fix misspellings. The r
 
 ## Running Locally
 
-1. **Clone the repository** and install Python dependencies (includes `rapidfuzz` for fuzzy matching with search results):
+1. **Clone the repository** and install Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
@@ -29,4 +29,5 @@ Metadata lookups first query the Wikipedia search API to fix misspellings. The r
 3. Fuzzy metadata search ✅
 4. Recommendation rate (how much I will enjoy the media)
 5. Save to Notion DB
+7. LLM confidence level
 
