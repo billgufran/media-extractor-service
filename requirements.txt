@@ -7,3 +7,5 @@ pydantic==2.11.5
 python-multipart==0.0.20
 langchain==0.3.25
 langchain-openai==0.3.19
+rapidfuzz==3.13.0
+
