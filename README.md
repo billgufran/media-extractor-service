@@ -2,11 +2,11 @@
 
 Media Extractor Service is a FastAPI application that extracts text from images, uses a language model to classify movie, tv, or book titles, and fetches metadata about them. It exposes a minimal API to process image uploads and returns enriched media information.
 
-Metadata lookups first use the Wikipedia search API to fix misspellings before querying Google Books or TMDB.
+Metadata lookups first query the Wikipedia search API to fix misspellings. The result is cleaned of any trailing parentheses before querying Google Books or TMDB.
 
 ## Running Locally
 
-1. **Clone the repository** and install Python dependencies (includes `rapidfuzz` for fuzzy matching with Wikipedia search):
+1. **Clone the repository** and install Python dependencies (includes `rapidfuzz` for fuzzy matching with search results):
    ```bash
    pip install -r requirements.txt
    ```

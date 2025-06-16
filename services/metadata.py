@@ -1,6 +1,12 @@
 import os
 import requests
 from rapidfuzz import fuzz, process
+import re
+
+
+def _clean_title(text: str) -> str:
+    """Remove parenthetical info like ' (film)' from a title."""
+    return re.sub(r"\s*\([^\)]*\)$", "", text).strip()
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 GOOGLE_BOOKS_API_URL = "https://www.googleapis.com/books/v1/volumes"
@@ -29,7 +35,8 @@ def resolve_title_with_wikipedia(title: str, media_type: str) -> str:
             return title
         candidate_titles = [item.get("title", "") for item in items]
         best_match = process.extractOne(title, candidate_titles, scorer=fuzz.ratio)
-        return best_match[0] if best_match else candidate_titles[0]
+        chosen = best_match[0] if best_match else candidate_titles[0]
+        return _clean_title(chosen)
     except Exception:
         return title
 
