@@ -9,3 +9,5 @@ langchain==0.3.25
 langchain-openai==0.3.19
 rapidfuzz==3.13.0
 
+pylint==3.3.7
+pre-commit==4.2.0

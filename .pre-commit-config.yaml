@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint --exit-zero
+        language: system
+        types: [python]
