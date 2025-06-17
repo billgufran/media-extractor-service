@@ -50,4 +50,3 @@ If both fields are supplied, the text extracted from the file is concatenated wi
 5. Save to Notion DB
 7. LLM confidence level
 8. Unit test
-

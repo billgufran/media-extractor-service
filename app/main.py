@@ -1,30 +1,34 @@
+import os
+from typing import Any
 from fastapi import FastAPI, File, UploadFile, Depends, Form
 from dotenv import load_dotenv
-import os
 from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from models.response import ErrorResponse
 
 from app.auth import authorize
-
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
-
 from services.ocr import extract_text_from_image
 from services.classifier import MediaItem, extract_title_with_llm
 from services.metadata import fetch_metadata
 
+load_dotenv(
+    dotenv_path=os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+)
+
 app = FastAPI()
 
+
 @app.get("/")
-async def check():
+async def check() -> dict[str, str]:
     return {"message": "Hello World"}
+
 
 @app.post("/extract")
 async def extract_info(
-    file: UploadFile = File(None),
+    file: UploadFile | None = File(None),
     query: str | None = Form(None),
-    _auth=Depends(authorize),
-):
+    _auth: None = Depends(authorize),
+) -> Any:
     if file is None and (query is None or query == ""):
         return JSONResponse(
             status_code=400,
@@ -56,35 +60,41 @@ async def extract_info(
 
     metadatas = []
     for item_data in llm_result:
-      try:
-        # Pydantic v2 way: parse a dictionary directly into the model
-        media_item = MediaItem.model_validate(item_data)
+        try:
+            # Pydantic v2 way: parse a dictionary directly into the model
+            media_item = MediaItem.model_validate(item_data)
 
-        # Now media_item is definitely a MediaItem instance, use dot notation
-        metadata = fetch_metadata(
-            media_type=media_item.type,
-            title=media_item.title,
-            # Commenting because LLM is not always returning the right info
-            # year=media_item.year
-            # author=media_item.author,
-        )
-        if metadata.get("title"):
-          metadatas.append(metadata)
+            # Now media_item is definitely a MediaItem instance, use dot notation
+            metadata = fetch_metadata(
+                media_type=media_item.type,
+                title=media_item.title,
+                # Commenting because LLM is not always returning the right info
+                # year=media_item.year
+                # author=media_item.author,
+            )
+            if metadata.get("title"):
+                metadatas.append(metadata)
 
-      except ValidationError as e:
-        print(f"Skipping invalid item: {item_data} due to validation error: {e}")
-      except Exception as e:
-        print(f"An unexpected error occurred processing item: {item_data}: {e}")
+        except ValidationError as e:
+            print(f"Skipping invalid item: {item_data} due to validation error: {e}")
+        except Exception as e:
+            print(f"An unexpected error occurred processing item: {item_data}: {e}")
 
-    return [{
-        "title": metadata.get("title"),
-        "type": metadata.get("type"),
-        "author": metadata.get("author"),
-        "year": metadata.get("year"),
-        "description": metadata.get("description"),
-    } for metadata in metadatas]
+    return [
+        {
+            "title": metadata.get("title"),
+            "type": metadata.get("type"),
+            "author": metadata.get("author"),
+            "year": metadata.get("year"),
+            "description": metadata.get("description"),
+        }
+        for metadata in metadatas
+    ]
+
 
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.getenv("PORT", 3005))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=3005, reload=True)
+    host = os.getenv("HOST", "127.0.0.1")  # Default to localhost for security
+    uvicorn.run("app.main:app", host=host, port=port, reload=True)
