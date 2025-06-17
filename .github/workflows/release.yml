@@ -34,8 +34,25 @@ jobs:
       - name: Configure Docker
         run: gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev --quiet
 
+      - name: Check if image exists
+        id: check_image
+        run: |
+          IMAGE_URI=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$GAR_REPOSITORY/$IMAGE_NAME:${{ github.event.release.tag_name }}
+          echo "Checking for existing image: $IMAGE_URI"
+          if gcloud artifacts docker images list $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$GAR_REPOSITORY/$IMAGE_NAME \
+            --include-tags \
+            --filter="tags:${{ github.event.release.tag_name }}" \
+            --format="value(tags)" | grep "${{ github.event.release.tag_name }}" > /dev/null; then
+              echo "found=true" >> $GITHUB_OUTPUT
+              echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          else
+              echo "found=false" >> $GITHUB_OUTPUT
+              echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build Docker image
         id: build
+        if: steps.check_image.outputs.found == 'false'
         run: |
           IMAGE_URI=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$GAR_REPOSITORY/$IMAGE_NAME:${{ github.event.release.tag_name }}
           echo "Building image tagged as: ${{ github.event.release.tag_name }}..."
@@ -44,8 +61,9 @@ jobs:
 
       - name: Push Docker image
         id: push
+        if: steps.check_image.outputs.found == 'false'
         run: |
-          IMAGE_URI=${{ steps.build.outputs.image_uri }}
+          IMAGE_URI=${{ steps.push.outputs.image_uri || steps.build.outputs.image_uri || steps.check_image.outputs.image_uri }}
           echo "Pushing image to Artifact Registry..."
           docker push "$IMAGE_URI"
           echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
@@ -57,7 +75,6 @@ jobs:
           service: ${{ env.CLOUD_RUN_SERVICE }}
           image: ${{ steps.push.outputs.image_uri }}
           region: ${{ env.CLOUD_RUN_REGION }}
-          project_id: ${{ env.PROJECT_ID }}
 
       - name: Show deployed URL
         run: 'echo "Deployed to: ${{ steps.deploy.outputs.url }}"'
