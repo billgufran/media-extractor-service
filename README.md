@@ -43,10 +43,9 @@ If both fields are supplied, the text extracted from the file is concatenated wi
 
 ## Roadmap
 
-1. Release branch
-2. CI/CD (Possibly GH action. Triggered on new release)
-3. Fuzzy metadata search ✅
-4. Recommendation rate (how much I will enjoy the media)
-5. Save to Notion DB
-7. LLM confidence level
-8. Unit test
+1. CI/CD (Possibly GH action. Triggered on new release) ✅
+2. Fuzzy metadata search ✅
+3. Recommendation rate (how much I will enjoy the media)
+4. Save to Notion DB
+5. LLM confidence level
+6. Unit test
