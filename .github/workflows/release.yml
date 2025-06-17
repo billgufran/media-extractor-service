@@ -26,8 +26,8 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          project_id: $PROJECT_ID
-          workload_identity_provider: $WORKLOAD_IDENTITY_PROVIDER
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
 
       - name: Configure Docker
         run: gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev --quiet
