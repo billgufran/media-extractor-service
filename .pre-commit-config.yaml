@@ -18,13 +18,19 @@ repos:
         entry: .venv/bin/pylint --exit-zero
         language: system
         types: [python]
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.16.0
-    hooks:
       - id: mypy
+        name: mypy
+        entry: .venv/bin/mypy --strict
+        language: system
+        types: [python]
         files: "\\.py$"
-        args: [ "--strict" ]
+
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.16.0
+  #   hooks:
+  #     - id: mypy
+  #       files: "\\.py$"
+  #       args: [ "--strict" ]
 
   # Security ------------------------------------------------------
   - repo: https://github.com/Yelp/detect-secrets
