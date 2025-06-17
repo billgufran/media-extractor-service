@@ -1,4 +1,16 @@
 repos:
+  # Style ---------------------------------------------------------
+  - repo: https://github.com/psf/black          # or switch to ruff’s formatter
+    rev: 25.1.0
+    hooks: [ { id: black } ]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      - id: ruff
+        args: [ "--fix" ]                       # auto-apply safe fixes
+
+  # Deep lint / type checks ---------------------------------------
   - repo: local
     hooks:
       - id: pylint
@@ -6,3 +18,35 @@ repos:
         entry: .venv/bin/pylint --exit-zero
         language: system
         types: [python]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.16.0
+    hooks:
+      - id: mypy
+        files: "\\.py$"
+        args: [ "--strict" ]
+
+  # Security ------------------------------------------------------
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks: [ { id: detect-secrets } ]
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.4
+    hooks: [ { id: bandit } ]
+
+  # House-keeping -------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-added-large-files
+
+  # Modernization -------------------------------------------------
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.20.0
+    hooks:
+      - id: pyupgrade
+        args: [ "--py311-plus" ]                # target runtime
