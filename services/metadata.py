@@ -1,16 +1,16 @@
 import os
 import requests
-from rapidfuzz import fuzz, process
 import re
+from rapidfuzz import fuzz, process
+
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+GOOGLE_BOOKS_API_URL = "https://www.googleapis.com/books/v1/volumes"
+TMDB_API_URL = "https://api.themoviedb.org/3"
 
 
 def _clean_title(text: str) -> str:
     """Remove parenthetical info like ' (film)' from a title."""
     return re.sub(r"\s*\([^\)]*\)$", "", text).strip()
-
-TMDB_API_KEY = os.getenv("TMDB_API_KEY")
-GOOGLE_BOOKS_API_URL = "https://www.googleapis.com/books/v1/volumes"
-TMDB_API_URL = "https://api.themoviedb.org/3"
 
 
 def resolve_title_with_wikipedia(title: str, media_type: str) -> str:
@@ -29,7 +29,9 @@ def resolve_title_with_wikipedia(title: str, media_type: str) -> str:
             "format": "json",
             "srsearch": query,
         }
-        res = requests.get("https://en.wikipedia.org/w/api.php", params=params).json()
+        res = requests.get(
+            "https://en.wikipedia.org/w/api.php", params=params, timeout=30
+        ).json()
         items = res.get("query", {}).get("search", [])
         if not items:
             return title
@@ -41,17 +43,15 @@ def resolve_title_with_wikipedia(title: str, media_type: str) -> str:
         return title
 
 
-def fetch_movie_metadata(title: str, year: int | None = None):
+def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
     try:
         refined = resolve_title_with_wikipedia(title, "movie")
-        req_url = (
-            f"{TMDB_API_URL}/search/movie?api_key={TMDB_API_KEY}&query={refined}"
-        )
+        req_url = f"{TMDB_API_URL}/search/movie?api_key={TMDB_API_KEY}&query={refined}"
 
         if year:
             req_url += f"&year={year}"
 
-        res = requests.get(req_url).json()
+        res = requests.get(req_url, timeout=30).json()
         items = res.get("results", [])
 
         if items:
@@ -67,7 +67,7 @@ def fetch_movie_metadata(title: str, year: int | None = None):
         return {"error": f"Metadata lookup failed: {str(e)}"}
 
 
-def fetch_tv_metadata(title: str, year: int | None = None):
+def fetch_tv_metadata(title: str, year: int | None = None) -> dict[str, str]:
     try:
         refined = resolve_title_with_wikipedia(title, "tv")
         req_url = f"{TMDB_API_URL}/search/tv?api_key={TMDB_API_KEY}&query={refined}"
@@ -75,7 +75,7 @@ def fetch_tv_metadata(title: str, year: int | None = None):
         if year:
             req_url += f"&year={year}"
 
-        res = requests.get(req_url).json()
+        res = requests.get(req_url, timeout=30).json()
         items = res.get("results", [])
 
         if items:
@@ -90,7 +90,7 @@ def fetch_tv_metadata(title: str, year: int | None = None):
         return {"error": f"Metadata lookup failed: {str(e)}"}
 
 
-def fetch_book_metadata(title: str, author: str | None = None):
+def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]:
     try:
         refined = resolve_title_with_wikipedia(title, "book")
         req_url = f"{GOOGLE_BOOKS_API_URL}?q={refined}"
@@ -98,7 +98,7 @@ def fetch_book_metadata(title: str, author: str | None = None):
         if author:
             req_url += f"+inauthor:{author}"
 
-        res = requests.get(req_url).json()
+        res = requests.get(req_url, timeout=30).json()
         items = res.get("items", [])
 
         if items:
@@ -109,9 +109,7 @@ def fetch_book_metadata(title: str, author: str | None = None):
             return {
                 "title": selected.get("volumeInfo", {}).get("title", refined),
                 "author": joined_authors,
-                "description": selected.get("volumeInfo", {}).get(
-                    "description", ""
-                ),
+                "description": selected.get("volumeInfo", {}).get("description", ""),
                 "year": selected.get("volumeInfo", {}).get("publishedDate", ""),
             }
         return {}
@@ -122,7 +120,7 @@ def fetch_book_metadata(title: str, author: str | None = None):
 
 def fetch_metadata(
     media_type: str, title: str, year: int | None = None, author: str | None = None
-):
+) -> dict[str, str]:
     metadata = {}
 
     if media_type == "movie":
