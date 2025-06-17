@@ -3,6 +3,6 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: pylint --exit-zero
+        entry: .venv/bin/pylint --exit-zero
         language: system
         types: [python]
