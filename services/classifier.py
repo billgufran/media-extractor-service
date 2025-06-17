@@ -1,6 +1,6 @@
 import json
-from pydantic import BaseModel
-from typing import Literal, Optional
+from typing import Literal
+from pydantic import BaseModel, ValidationError
 from langchain.schema import HumanMessage
 from services.llm_client import llm
 
@@ -8,10 +8,11 @@ from models.response import ErrorResponse
 
 
 class MediaItem(BaseModel):
-    type: Literal["movie", "book" , "tv"]
+    type: Literal["movie", "book", "tv"]
     title: str
-    author: Optional[str] = None
-    year: Optional[int] = None
+    author: str | None = None
+    year: int | None = None
+
 
 def extract_title_with_llm(text: str) -> list[MediaItem] | ErrorResponse:
     try:
@@ -50,9 +51,13 @@ def extract_title_with_llm(text: str) -> list[MediaItem] | ErrorResponse:
         cleaned_content = content.strip("`").lstrip("json").strip()
 
         try:
-            return json.loads(cleaned_content)
+            raw_data = json.loads(cleaned_content)
+            parsed_data = [MediaItem(**item) for item in raw_data]
+            return parsed_data
         except json.JSONDecodeError:
             return ErrorResponse(error="Invalid JSON response", raw=cleaned_content)
+        except (json.JSONDecodeError, ValidationError) as e:
+            return ErrorResponse(error="Failed to parse MediaItem", raw=str(e))
 
     except Exception as e:
         return ErrorResponse(error=f"LLM error: {str(e)}", raw=e)

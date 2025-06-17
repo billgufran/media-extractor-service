@@ -10,13 +10,17 @@ Metadata lookups first query the Wikipedia search API to fix misspellings. The r
    ```bash
    pip install -r requirements.txt
    ```
-2. **Create a `.env` file** in the project root with the following environment variables:
+2. **Install pre-commit hooks** so `pylint` runs on every commit:
+   ```bash
+   pre-commit install
+   ```
+3. **Create a `.env` file** in the project root with the following environment variables:
    ```bash
    OPENROUTER_API_KEY=<your-openrouter-api-key>
    TMDB_API_KEY=<your-tmdb-api-key>
    GOOGLE_VISION_API_KEY=<your-google-vision-api-key>
    ```
-3. **Start the server** using Uvicorn:
+4. **Start the server** using Uvicorn:
    ```bash
    uvicorn app.main:app --reload --port 3005
    ```
@@ -46,4 +50,3 @@ If both fields are supplied, the text extracted from the file is concatenated wi
 5. Save to Notion DB
 7. LLM confidence level
 8. Unit test
-
