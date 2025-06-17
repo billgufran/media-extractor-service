@@ -35,33 +35,30 @@ async def extract_info(
             content={"error": "Either 'file' or 'query' must be provided."},
         )
 
+    # Extraction
     full_text = ""
 
     if file is not None:
-        extracted_text = await extract_text_from_image(file)
+        extracted_info = await extract_text_from_image(file)
 
-        if "error" in extracted_text:
-            return JSONResponse(status_code=500, content=extracted_text)
+        if isinstance(extracted_info, ErrorResponse):
+            return JSONResponse(status_code=500, content=extracted_info)
 
-        full_text = extracted_text["text"]
+        full_text = extracted_info["text"]
 
     if query:
         full_text = f"{query} {full_text}".strip()
 
+    # Classification
     llm_result = extract_title_with_llm(full_text)
-
-    if llm_result is None:
-        return JSONResponse(status_code=500, content=llm_result)
 
     if isinstance(llm_result, ErrorResponse):
         return JSONResponse(status_code=500, content=llm_result)
 
-    print("llm_result", llm_result)
-
-    metadatas = []
+    # Metadata Lookup
+    metadatas: list[dict[str, str]] = []
     for item_data in llm_result:
         try:
-            # Pydantic v2 way: parse a dictionary directly into the model
             media_item = MediaItem.model_validate(item_data)
 
             # Now media_item is definitely a MediaItem instance, use dot notation
@@ -82,19 +79,11 @@ async def extract_info(
 
     return [
         {
-            "title": metadata.get("title"),
-            "type": metadata.get("type"),
-            "author": metadata.get("author"),
-            "year": metadata.get("year"),
-            "description": metadata.get("description"),
+            "title": metadata.get("title", ""),
+            "type": metadata.get("type", ""),
+            "author": metadata.get("author", ""),
+            "year": metadata.get("year", ""),
+            "description": metadata.get("description", ""),
         }
         for metadata in metadatas
     ]
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    port = int(os.getenv("PORT", 3005))
-    host = os.getenv("HOST", "127.0.0.1")  # Default to localhost for security
-    uvicorn.run("app.main:app", host=host, port=port, reload=True)
