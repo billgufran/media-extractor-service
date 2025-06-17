@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build, Push, and Deploy Docker Image
 
 on:
   release:
@@ -10,10 +10,12 @@ permissions:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT }}
-  GAR_LOCATION: ${{ secrets.GAR_LOCATION }}
+  GAR_LOCATION: ${{ vars.GAR_LOCATION }}
   GAR_REPOSITORY: ${{ secrets.GAR_REPOSITORY }}
   IMAGE_NAME: media-extractor-service
   WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+  CLOUD_RUN_REGION: ${{ vars.CLOUD_RUN_REGION }}
 
 jobs:
   build:
@@ -33,9 +35,29 @@ jobs:
         run: gcloud auth configure-docker $GAR_LOCATION-docker.pkg.dev --quiet
 
       - name: Build Docker image
+        id: build
         run: |
-          docker build -t $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$GAR_REPOSITORY/$IMAGE_NAME:${{ github.event.release.tag_name }} .
+          IMAGE_URI=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$GAR_REPOSITORY/$IMAGE_NAME:${{ github.event.release.tag_name }}
+          echo "Building image tagged as: ${{ github.event.release.tag_name }}..."
+          docker build -t "$IMAGE_URI" .
+          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
 
       - name: Push Docker image
+        id: push
         run: |
-          docker push $GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$GAR_REPOSITORY/$IMAGE_NAME:${{ github.event.release.tag_name }}
+          IMAGE_URI=${{ steps.build.outputs.image_uri }}
+          echo "Pushing image to Artifact Registry..."
+          docker push "$IMAGE_URI"
+          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.CLOUD_RUN_SERVICE }}
+          image: ${{ steps.push.outputs.image_uri }}
+          region: ${{ env.CLOUD_RUN_REGION }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Show deployed URL
+        run: 'echo "Deployed to: ${{ steps.deploy.outputs.url }}"'
