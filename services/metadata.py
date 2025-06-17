@@ -14,7 +14,20 @@ def _clean_title(text: str) -> str:
 
 
 def resolve_title_with_wikipedia(title: str, media_type: str) -> str:
-    """Use the Wikipedia search API to get the most likely canonical title."""
+    """
+    Attempts to resolve and return the canonical title of the given media using the Wikipedia search API.
+
+    This function constructs a search query based on the title and media type (e.g., movie, tv, book),
+    sends the query to Wikipedia, and selects the best matching title using fuzzy string matching.
+    If no suitable match is found, returns the first canditate title. If an error occurs, the original input title is returned.
+
+    Args:
+        title (str): The original title to resolve.
+        media_type (str): The type of media (e.g., "movie", "tv", "book").
+
+    Returns:
+        str: The resolved canonical title, or the original title if resolution fails.
+    """
     try:
         media_hint = {
             "movie": "film",
@@ -55,6 +68,7 @@ def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
         items = res.get("results", [])
 
         if items:
+            # might need to do fuzzy matching here as well
             selected = items[0]
             return {
                 "title": selected.get("title", refined),
@@ -79,6 +93,7 @@ def fetch_tv_metadata(title: str, year: int | None = None) -> dict[str, str]:
         items = res.get("results", [])
 
         if items:
+            # might need to do fuzzy matching here as well
             selected = items[0]
             return {
                 "title": selected.get("name", refined),
@@ -102,6 +117,7 @@ def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]
         items = res.get("items", [])
 
         if items:
+            # might need to do fuzzy matching here as well
             selected = items[0]
             joined_authors = ", ".join(
                 selected.get("volumeInfo", {}).get("authors", [])
@@ -130,14 +146,11 @@ def fetch_metadata(
     elif media_type == "book":
         metadata = fetch_book_metadata(title, author)
 
-    # print("metadata", metadata)
-
-    metadata_title = metadata.get("title")
-    resolved_title = metadata_title if metadata_title is not None else title
+    metadata_title = metadata.get("title", title)
 
     return {
         **metadata,
-        "title": resolved_title,
+        "title": metadata_title,
         "type": media_type,
         "description": metadata.get("description", ""),
     }

@@ -3,13 +3,15 @@ import base64
 import requests
 from fastapi import UploadFile
 
+from models.response import ErrorResponse
+
 GOOGLE_VISION_API_KEY = os.getenv("GOOGLE_VISION_API_KEY")
 VISION_ENDPOINT = (
     f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}"
 )
 
 
-async def extract_text_from_image(file: UploadFile) -> dict[str, str]:
+async def extract_text_from_image(file: UploadFile) -> dict[str, str] | ErrorResponse:
     try:
         content = await file.read()
         encoded_image = base64.b64encode(content).decode("utf-8")
@@ -33,9 +35,13 @@ async def extract_text_from_image(file: UploadFile) -> dict[str, str]:
         result = response.json()
 
         if "error" in result:
-            return {"error": result["error"], "raw": result}
+            return ErrorResponse(error=result["error"], raw=result)
 
-        text = result["responses"][0].get("fullTextAnnotation", {}).get("text", "")
-        return {"text": text}
+        extracted_text = (
+            result["responses"][0].get("fullTextAnnotation", {}).get("text", "")
+        )
+
+        return {"text": extracted_text}
+
     except Exception as e:
-        return {"error": f"OCR failed: {str(e)}"}
+        return ErrorResponse(error=f"OCR failed: {str(e)}", raw=e)
