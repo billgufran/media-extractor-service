@@ -1,4 +1,5 @@
 import os
+from typing import Any
 import requests
 import re
 from rapidfuzz import fuzz, process
@@ -105,6 +106,10 @@ def fetch_tv_metadata(title: str, year: int | None = None) -> dict[str, str]:
         return {"error": f"Metadata lookup failed: {str(e)}"}
 
 
+def get_book_title(item: Any) -> str:
+    title = item.get("volumeInfo", {}).get("title", "")
+    return title if isinstance(title, str) else ""
+
 def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]:
     try:
         refined = resolve_title_with_wikipedia(title, "book")
@@ -118,7 +123,10 @@ def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]
 
         if items:
             # might need to do fuzzy matching here as well
-            selected = items[0]
+            best_match = process.extractOne(
+                query=title, choices=items, processor=get_book_title, scorer=fuzz.WRatio
+            )
+            selected = best_match[0] if best_match else items[0]
             joined_authors = ", ".join(
                 selected.get("volumeInfo", {}).get("authors", [])
             )
