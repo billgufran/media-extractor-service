@@ -1,5 +1,4 @@
 import os
-from typing import Any
 import requests
 import re
 from rapidfuzz import fuzz, process
@@ -106,9 +105,14 @@ def fetch_tv_metadata(title: str, year: int | None = None) -> dict[str, str]:
         return {"error": f"Metadata lookup failed: {str(e)}"}
 
 
-def get_book_title(item: Any) -> str:
-    title = item.get("volumeInfo", {}).get("title", "")
-    return title if isinstance(title, str) else ""
+def get_book_title(item: object) -> str:
+    if isinstance(item, dict) and "volumeInfo" in item and "title" in item["volumeInfo"]:
+        return str(item["volumeInfo"]["title"])
+
+    if isinstance(item, str):
+        return item
+
+    return ""
 
 def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]:
     try:
@@ -122,7 +126,6 @@ def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]
         items = res.get("items", [])
 
         if items:
-            # might need to do fuzzy matching here as well
             best_match = process.extractOne(
                 query=title, choices=items, processor=get_book_title, scorer=fuzz.WRatio
             )
