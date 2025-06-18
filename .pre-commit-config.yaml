@@ -1,9 +1,5 @@
 repos:
   # Style ---------------------------------------------------------
-  - repo: https://github.com/psf/black          # or switch to ruff’s formatter
-    rev: 25.1.0
-    hooks: [ { id: black } ]
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.13
     hooks:
