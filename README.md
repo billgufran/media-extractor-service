@@ -19,6 +19,7 @@ Metadata lookups first query the Wikipedia search API to fix misspellings. The r
    OPENROUTER_API_KEY=<your-openrouter-api-key>
    TMDB_API_KEY=<your-tmdb-api-key>
    GOOGLE_VISION_API_KEY=<your-google-vision-api-key>
+   MEDIA_EXTRACTOR_PUBLIC_API_KEY=<optional-public-api-key>
    ```
 4. **Start the server** using Uvicorn:
    ```bash
@@ -40,6 +41,8 @@ Form fields:
 | `query` | string | Additional text query (optional) |
 
 If both fields are supplied, the text extracted from the file is concatenated with the query before being processed.
+
+Requests authenticated with the optional public API key are limited to **2** requests every **15 minutes**. Exceeding this limit will return a `429 Too Many Requests` error.
 
 ## Roadmap
 
