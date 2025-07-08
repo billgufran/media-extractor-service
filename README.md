@@ -1,6 +1,6 @@
 # Media Extractor Service
 
-Media Extractor Service is a FastAPI application that extracts text from images, uses a language model to classify movie, tv, or book titles, and fetches metadata about them. It exposes a minimal API to process image uploads and returns enriched media information.
+Media Extractor Service is an AI-powered FastAPI application that extracts text from images, uses a language model to classify movie, tv, or book titles, and fetches metadata about them. It exposes a minimal API to process image uploads and returns enriched media information.
 
 Metadata lookups first query the Wikipedia search API to fix misspellings. The result is cleaned of any trailing parentheses before querying Google Books or TMDB.
 
@@ -43,9 +43,6 @@ If both fields are supplied, the text extracted from the file is concatenated wi
 
 ## Roadmap
 
-1. CI/CD (Possibly GH action. Triggered on new release) ✅
-2. Fuzzy metadata search ✅
-3. Recommendation rate (how much I will enjoy the media)
-4. Save to Notion DB
-5. LLM confidence level
-6. Unit test
+1. Recommendation rate
+1. LLM confidence level
+1. Unit test
