@@ -14,13 +14,17 @@ Metadata lookups first query the Wikipedia search API to fix misspellings. The r
    ```bash
    pre-commit install
    ```
-3. **Create a `.env` file** in the project root with the following environment variables:
+3. **Create a `.env` file** based on `.env.example` and set the following variables:
    ```bash
+   cp .env.example .env
    OPENROUTER_API_KEY=<your-openrouter-api-key>
    TMDB_API_KEY=<your-tmdb-api-key>
    GOOGLE_VISION_API_KEY=<your-google-vision-api-key>
+   MEDIA_EXTRACTOR_API_KEY=<generated-api-key>
    MEDIA_EXTRACTOR_PUBLIC_API_KEY=<optional-public-api-key>
    ```
+   The two `MEDIA_EXTRACTOR_*` keys can be any random strings generated with your
+   preferred key generator.
 4. **Start the server** using Uvicorn:
    ```bash
    uvicorn app.main:app --reload --port 3005
@@ -49,3 +53,4 @@ Requests authenticated with the optional public API key are limited to **2** req
 1. Recommendation rate
 1. LLM confidence level
 1. Unit test
+1. Improve rate limit
