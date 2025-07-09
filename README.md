@@ -14,12 +14,12 @@ Metadata lookups first query the Wikipedia search API to fix misspellings. The r
    ```bash
    pre-commit install
    ```
-3. **Create a `.env` file** in the project root with the following environment variables:
+3. **Create a `.env` file** based on `.env.example` and set variables accodringly:
    ```bash
-   OPENROUTER_API_KEY=<your-openrouter-api-key>
-   TMDB_API_KEY=<your-tmdb-api-key>
-   GOOGLE_VISION_API_KEY=<your-google-vision-api-key>
+   cp .env.example .env
    ```
+   The two `MEDIA_EXTRACTOR_*` keys can be any random strings generated with your
+   preferred key generator.
 4. **Start the server** using Uvicorn:
    ```bash
    uvicorn app.main:app --reload --port 3005
@@ -41,8 +41,11 @@ Form fields:
 
 If both fields are supplied, the text extracted from the file is concatenated with the query before being processed.
 
+Requests authenticated with the optional public API key are limited to **2** requests every **15 minutes**. Exceeding this limit will return a `429 Too Many Requests` error.
+
 ## Roadmap
 
 1. Recommendation rate
 1. LLM confidence level
 1. Unit test
+1. Improve rate limit
