@@ -14,14 +14,9 @@ Metadata lookups first query the Wikipedia search API to fix misspellings. The r
    ```bash
    pre-commit install
    ```
-3. **Create a `.env` file** based on `.env.example` and set the following variables:
+3. **Create a `.env` file** based on `.env.example` and set variables accodringly:
    ```bash
    cp .env.example .env
-   OPENROUTER_API_KEY=<your-openrouter-api-key>
-   TMDB_API_KEY=<your-tmdb-api-key>
-   GOOGLE_VISION_API_KEY=<your-google-vision-api-key>
-   MEDIA_EXTRACTOR_API_KEY=<generated-api-key>
-   MEDIA_EXTRACTOR_PUBLIC_API_KEY=<optional-public-api-key>
    ```
    The two `MEDIA_EXTRACTOR_*` keys can be any random strings generated with your
    preferred key generator.
