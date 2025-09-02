@@ -1,9 +1,11 @@
 import os
-import requests
 import re
+from typing import Any, cast
+
+import requests
 from rapidfuzz import fuzz, process
 
-TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+TMDB_API_KEY = os.getenv("TMDB_API_KEY") or ""
 GOOGLE_BOOKS_API_URL = "https://www.googleapis.com/books/v1/volumes"
 TMDB_API_URL = "https://api.themoviedb.org/3"
 
@@ -15,10 +17,10 @@ def _clean_title(text: str) -> str:
 
 def _normalize(text: str) -> str:
     """Lowercase and strip extra spaces for fuzzy matching."""
-    return re.sub(r"\s+", " ", text or "").strip().lower()
+    return re.sub(r"\s+", " ", text).strip().lower()
 
 
-def _parse_year(value: str | None) -> int | None:
+def _parse_year(value: object | None) -> int | None:
     if not value:
         return None
     try:
@@ -40,7 +42,9 @@ def _has_generic_first_hint(query: str) -> bool:
     return bool((tokens & first_words) or (tokens & roman_first))
 
 
-def _select_best_tmdb_match(query: str, items: list[dict], *, is_tv: bool = False) -> dict | None:
+def _select_best_tmdb_match(
+    query: str, items: list[dict[str, Any]], *, is_tv: bool = False
+) -> dict[str, Any] | None:
     """
     Choose the best TMDB search result using fuzzy matching and simple heuristics.
 
@@ -56,9 +60,10 @@ def _select_best_tmdb_match(query: str, items: list[dict], *, is_tv: bool = Fals
     title_keys = ["name", "original_name"] if is_tv else ["title", "original_title"]
 
     # Build candidates with computed fields
-    candidates: list[dict] = []
+    candidates: list[dict[str, Any]] = []
     for it in items:
-        raw_title = next((it.get(k) for k in title_keys if it.get(k)), "")
+        raw_title_val = next((it.get(k) for k in title_keys if it.get(k)), "")
+        raw_title = str(raw_title_val)
         cleaned = _clean_title(raw_title)
         year = _parse_year(it.get("first_air_date" if is_tv else "release_date"))
         candidates.append(
@@ -111,22 +116,36 @@ def _refine_query(title: str) -> str:
 def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
     try:
         refined = _refine_query(title)
-        req_url = f"{TMDB_API_URL}/search/movie?api_key={TMDB_API_KEY}&include_adult=false&language=en-US&query={requests.utils.quote(refined)}"
+        params: dict[str, Any] = {
+            "api_key": TMDB_API_KEY,
+            "include_adult": "false",
+            "language": "en-US",
+            "query": refined,
+        }
+        if year is not None:
+            params["year"] = year
 
-        if year:
-            req_url += f"&year={year}"
-
-        res = requests.get(req_url, timeout=30).json()
-        items = res.get("results", [])
+        res = cast(
+            dict[str, Any],
+            requests.get(f"{TMDB_API_URL}/search/movie", params=params, timeout=30).json(),
+        )
+        items = cast(list[dict[str, Any]], res.get("results") or [])
 
         if items:
             selected = _select_best_tmdb_match(refined, items, is_tv=False) or items[0]
             return {
-                "title": _clean_title(selected.get("title") or selected.get("original_title") or refined),
-                "description": selected.get("overview", ""),
-                "year": selected.get("release_date", ""),
+                "title": _clean_title(
+                    str(
+                        selected.get("title")
+                        or selected.get("original_title")
+                        or refined
+                    )
+                ),
+                "description": str(selected.get("overview", "")),
+                "year": str(selected.get("release_date", "")),
             }
-        return {}
+        # No results: return a typed, consistent fallback
+        return {"title": refined, "description": "", "year": ""}
 
     except Exception as e:
         return {"error": f"Metadata lookup failed: {str(e)}"}
@@ -135,29 +154,48 @@ def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
 def fetch_tv_metadata(title: str, year: int | None = None) -> dict[str, str]:
     try:
         refined = _refine_query(title)
-        req_url = f"{TMDB_API_URL}/search/tv?api_key={TMDB_API_KEY}&include_adult=false&language=en-US&query={requests.utils.quote(refined)}"
+        params: dict[str, Any] = {
+            "api_key": TMDB_API_KEY,
+            "include_adult": "false",
+            "language": "en-US",
+            "query": refined,
+        }
+        if year is not None:
+            params["year"] = year
 
-        if year:
-            req_url += f"&year={year}"
-
-        res = requests.get(req_url, timeout=30).json()
-        items = res.get("results", [])
+        res = cast(
+            dict[str, Any],
+            requests.get(f"{TMDB_API_URL}/search/tv", params=params, timeout=30).json(),
+        )
+        items = cast(list[dict[str, Any]], res.get("results") or [])
 
         if items:
             selected = _select_best_tmdb_match(refined, items, is_tv=True) or items[0]
             return {
-                "title": _clean_title(selected.get("name") or selected.get("original_name") or refined),
-                "description": selected.get("overview", ""),
+                "title": _clean_title(
+                    str(
+                        selected.get("name")
+                        or selected.get("original_name")
+                        or refined
+                    )
+                ),
+                "description": str(selected.get("overview", "")),
+                "year": str(selected.get("first_air_date", "")),
             }
-        return {}
+        # No results: return a typed, consistent fallback
+        return {"title": refined, "description": "", "year": ""}
 
     except Exception as e:
         return {"error": f"Metadata lookup failed: {str(e)}"}
 
 
 def get_book_title(item: object) -> str:
-    if isinstance(item, dict) and "volumeInfo" in item and "title" in item["volumeInfo"]:
-        return str(item["volumeInfo"]["title"])
+    if isinstance(item, dict):
+        vi = item.get("volumeInfo")
+        if isinstance(vi, dict):
+            title_val = vi.get("title")
+            if title_val is not None:
+                return str(title_val)
 
     if isinstance(item, str):
         return item
@@ -167,29 +205,43 @@ def get_book_title(item: object) -> str:
 def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]:
     try:
         refined = _refine_query(title)
-        req_url = f"{GOOGLE_BOOKS_API_URL}?q={requests.utils.quote(refined)}"
-
-        if author:
-            req_url += f"+inauthor:{author}"
-
-        res = requests.get(req_url, timeout=30).json()
-        items = res.get("items", [])
+        q = refined if not author else f"{refined} inauthor:{author}"
+        res = cast(
+            dict[str, Any],
+            requests.get(GOOGLE_BOOKS_API_URL, params={"q": q}, timeout=30).json(),
+        )
+        items = cast(list[dict[str, Any]], res.get("items") or [])
 
         if items:
-            best_match = process.extractOne(
-                query=title, choices=items, processor=get_book_title, scorer=fuzz.WRatio
+            # RapidFuzz returns a tuple: (choice, score, index). Types can be dynamic; cast for mypy.
+            best_match = cast(
+                tuple[dict[str, Any], float, int] | None,
+                process.extractOne(
+                    query=title,
+                    choices=items,
+                    processor=get_book_title,
+                    scorer=fuzz.WRatio,
+                ),
             )
-            selected = best_match[0] if best_match else items[0]
-            joined_authors = ", ".join(
-                selected.get("volumeInfo", {}).get("authors", [])
-            )
+            selected: dict[str, Any] = best_match[0] if best_match else items[0]
+            authors_val: Any = selected.get("volumeInfo", {}).get("authors", [])
+            if not isinstance(authors_val, list):
+                authors_list: list[str] = []
+            else:
+                authors_list = [str(a) for a in authors_val]
+            joined_authors = ", ".join(authors_list)
             return {
-                "title": _clean_title(selected.get("volumeInfo", {}).get("title", refined)),
+                "title": _clean_title(
+                    str(selected.get("volumeInfo", {}).get("title", refined))
+                ),
                 "author": joined_authors,
-                "description": selected.get("volumeInfo", {}).get("description", ""),
-                "year": selected.get("volumeInfo", {}).get("publishedDate", ""),
+                "description": str(
+                    selected.get("volumeInfo", {}).get("description", "")
+                ),
+                "year": str(selected.get("volumeInfo", {}).get("publishedDate", "")),
             }
-        return {}
+        # No results: return a typed, consistent fallback
+        return {"title": refined, "author": "", "description": "", "year": ""}
 
     except Exception as e:
         return {"error": f"Metadata lookup failed: {str(e)}"}
@@ -198,7 +250,7 @@ def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]
 def fetch_metadata(
     media_type: str, title: str, year: int | None = None, author: str | None = None
 ) -> dict[str, str]:
-    metadata = {}
+    metadata: dict[str, str] = {}
 
     if media_type == "movie":
         metadata = fetch_movie_metadata(title, year)
