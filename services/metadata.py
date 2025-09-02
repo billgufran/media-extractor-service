@@ -13,53 +13,105 @@ def _clean_title(text: str) -> str:
     return re.sub(r"\s*\([^\)]*\)$", "", text).strip()
 
 
-def resolve_title_with_wikipedia(title: str, media_type: str) -> str:
-    """
-    Attempts to resolve and return the canonical title of the given media using the Wikipedia search API.
+def _normalize(text: str) -> str:
+    """Lowercase and strip extra spaces for fuzzy matching."""
+    return re.sub(r"\s+", " ", text or "").strip().lower()
 
-    This function constructs a search query based on the title and media type (e.g., movie, tv, book),
-    sends the query to Wikipedia, and selects the best matching title using fuzzy string matching.
-    If no suitable match is found, returns the first canditate title. If an error occurs, the original input title is returned.
 
-    Args:
-        title (str): The original title to resolve.
-        media_type (str): The type of media (e.g., "movie", "tv", "book").
-
-    Returns:
-        str: The resolved canonical title, or the original title if resolution fails.
-    """
+def _parse_year(value: str | None) -> int | None:
+    if not value:
+        return None
     try:
-        media_hint = {
-            "movie": "film",
-            "tv": "television series",
-            "book": "book",
-        }.get(media_type, "")
-
-        query = f"{title} {media_hint}".strip()
-        params = {
-            "action": "query",
-            "list": "search",
-            "format": "json",
-            "srsearch": query,
-        }
-        res = requests.get(
-            "https://en.wikipedia.org/w/api.php", params=params, timeout=30
-        ).json()
-        items = res.get("query", {}).get("search", [])
-        if not items:
-            return title
-        candidate_titles = [item.get("title", "") for item in items]
-        best_match = process.extractOne(title, candidate_titles, scorer=fuzz.ratio)
-        chosen = best_match[0] if best_match else candidate_titles[0]
-        return _clean_title(chosen)
+        # TMDB returns YYYY-MM-DD for movies and TV first_air_date
+        return int(str(value)[:4])
     except Exception:
-        return title
+        return None
+
+
+def _has_generic_first_hint(query: str) -> bool:
+    """Detect queries like 'series 1', '1', 'first' without explicit 'part'."""
+    q = _normalize(query)
+    tokens = set(re.findall(r"\w+", q))
+    explicit_part_words = {"part", "episode", "season", "volume", "book", "chapter"}
+    if tokens & explicit_part_words:
+        return False
+    first_words = {"1", "1st", "first", "one"}
+    roman_first = {"i"}
+    return bool((tokens & first_words) or (tokens & roman_first))
+
+
+def _select_best_tmdb_match(query: str, items: list[dict], *, is_tv: bool = False) -> dict | None:
+    """
+    Choose the best TMDB search result using fuzzy matching and simple heuristics.
+
+    Heuristics:
+    - If the query implies the first installment (e.g., contains '1' or 'first' without 'part'),
+      prefer the earliest release among candidates containing the base tokens.
+    - Otherwise, use WRatio against cleaned title/name, break ties by popularity and vote_count.
+    """
+    if not items:
+        return None
+
+    # Candidate title field names differ between movie and TV results
+    title_keys = ["name", "original_name"] if is_tv else ["title", "original_title"]
+
+    # Build candidates with computed fields
+    candidates: list[dict] = []
+    for it in items:
+        raw_title = next((it.get(k) for k in title_keys if it.get(k)), "")
+        cleaned = _clean_title(raw_title)
+        year = _parse_year(it.get("first_air_date" if is_tv else "release_date"))
+        candidates.append(
+            {
+                "item": it,
+                "raw_title": raw_title or "",
+                "title": cleaned,
+                "year": year,
+                "popularity": it.get("popularity", 0) or 0,
+                "vote_count": it.get("vote_count", 0) or 0,
+            }
+        )
+
+    # If query hints "first installment" (e.g. '1', 'first'), pick earliest release
+    if _has_generic_first_hint(query):
+        # Base tokens = query minus numbers and installment markers
+        q = _normalize(query)
+        base_tokens = [
+            t
+            for t in re.findall(r"\w+", q)
+            if t not in {"1", "1st", "first", "one", "part", "episode", "season", "volume", "book", "chapter", "film", "movie", "tv"}
+            and not t.isdigit()
+        ]
+        def contains_all_tokens(title: str) -> bool:
+            t = _normalize(title)
+            return all(bt in t for bt in base_tokens) if base_tokens else True
+
+        scoped = [c for c in candidates if contains_all_tokens(c["title"])] or candidates
+        scoped.sort(key=lambda c: (c["year"] if c["year"] is not None else 10**9, -c["popularity"]))
+        return scoped[0]["item"]
+
+    # Otherwise choose by fuzzy score then popularity
+    norm_q = _normalize(_clean_title(query))
+    for c in candidates:
+        c["score"] = fuzz.WRatio(norm_q, _normalize(c["title"]))
+
+    candidates.sort(key=lambda c: (c["score"], c["vote_count"], c["popularity"]), reverse=True)
+    return candidates[0]["item"]
+
+
+def _refine_query(title: str) -> str:
+    """Lightly normalize user input for downstream APIs."""
+    # Strip trailing parentheticals and common noise words
+    t = _clean_title(title)
+    # Collapse multiple spaces
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
 
 
 def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
     try:
-        refined = resolve_title_with_wikipedia(title, "movie")
-        req_url = f"{TMDB_API_URL}/search/movie?api_key={TMDB_API_KEY}&query={refined}"
+        refined = _refine_query(title)
+        req_url = f"{TMDB_API_URL}/search/movie?api_key={TMDB_API_KEY}&include_adult=false&language=en-US&query={requests.utils.quote(refined)}"
 
         if year:
             req_url += f"&year={year}"
@@ -68,10 +120,9 @@ def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
         items = res.get("results", [])
 
         if items:
-            # might need to do fuzzy matching here as well
-            selected = items[0]
+            selected = _select_best_tmdb_match(refined, items, is_tv=False) or items[0]
             return {
-                "title": selected.get("title", refined),
+                "title": _clean_title(selected.get("title") or selected.get("original_title") or refined),
                 "description": selected.get("overview", ""),
                 "year": selected.get("release_date", ""),
             }
@@ -83,8 +134,8 @@ def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
 
 def fetch_tv_metadata(title: str, year: int | None = None) -> dict[str, str]:
     try:
-        refined = resolve_title_with_wikipedia(title, "tv")
-        req_url = f"{TMDB_API_URL}/search/tv?api_key={TMDB_API_KEY}&query={refined}"
+        refined = _refine_query(title)
+        req_url = f"{TMDB_API_URL}/search/tv?api_key={TMDB_API_KEY}&include_adult=false&language=en-US&query={requests.utils.quote(refined)}"
 
         if year:
             req_url += f"&year={year}"
@@ -93,10 +144,9 @@ def fetch_tv_metadata(title: str, year: int | None = None) -> dict[str, str]:
         items = res.get("results", [])
 
         if items:
-            # might need to do fuzzy matching here as well
-            selected = items[0]
+            selected = _select_best_tmdb_match(refined, items, is_tv=True) or items[0]
             return {
-                "title": selected.get("name", refined),
+                "title": _clean_title(selected.get("name") or selected.get("original_name") or refined),
                 "description": selected.get("overview", ""),
             }
         return {}
@@ -116,8 +166,8 @@ def get_book_title(item: object) -> str:
 
 def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]:
     try:
-        refined = resolve_title_with_wikipedia(title, "book")
-        req_url = f"{GOOGLE_BOOKS_API_URL}?q={refined}"
+        refined = _refine_query(title)
+        req_url = f"{GOOGLE_BOOKS_API_URL}?q={requests.utils.quote(refined)}"
 
         if author:
             req_url += f"+inauthor:{author}"
@@ -134,7 +184,7 @@ def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]
                 selected.get("volumeInfo", {}).get("authors", [])
             )
             return {
-                "title": selected.get("volumeInfo", {}).get("title", refined),
+                "title": _clean_title(selected.get("volumeInfo", {}).get("title", refined)),
                 "author": joined_authors,
                 "description": selected.get("volumeInfo", {}).get("description", ""),
                 "year": selected.get("volumeInfo", {}).get("publishedDate", ""),

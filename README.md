@@ -2,7 +2,7 @@
 
 Media Extractor Service is an AI-powered FastAPI application that extracts text from images, uses a language model to classify movie, tv, or book titles, and fetches metadata about them. It exposes a minimal API to process image uploads and returns enriched media information.
 
-Metadata lookups first query the Wikipedia search API to fix misspellings. The result is cleaned of any trailing parentheses before querying Google Books or TMDB.
+Metadata lookups use TMDB (movies/TV) and Google Books (books) directly. Titles are lightly normalized (e.g., trailing parentheses removed) and selected using fuzzy matching plus small heuristics (e.g., if a query contains a generic "1"/"first" without "part", we prefer the earliest release in a franchise).
 
 ## Running Locally
 
