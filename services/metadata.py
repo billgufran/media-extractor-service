@@ -93,7 +93,7 @@ def _select_best_tmdb_match(
 
         scoped = [c for c in candidates if contains_all_tokens(c["title"])] or candidates
         scoped.sort(key=lambda c: (c["year"] if c["year"] is not None else 10**9, -c["popularity"]))
-        return scoped[0]["item"]
+        return cast(dict[str, Any], scoped[0]["item"])
 
     # Otherwise choose by fuzzy score then popularity
     norm_q = _normalize(_clean_title(query))
@@ -101,7 +101,7 @@ def _select_best_tmdb_match(
         c["score"] = fuzz.WRatio(norm_q, _normalize(c["title"]))
 
     candidates.sort(key=lambda c: (c["score"], c["vote_count"], c["popularity"]), reverse=True)
-    return candidates[0]["item"]
+    return cast(dict[str, Any], candidates[0]["item"])
 
 
 def _refine_query(title: str) -> str:
