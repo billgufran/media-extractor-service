@@ -6,6 +6,7 @@ from services.metadata import (
     _has_generic_first_hint,
     _refine_query,
     _select_best_tmdb_match,
+    _select_best_book_match,
 )
 
 
@@ -36,5 +37,53 @@ def test_select_best_tmdb_match_uses_fuzzy_score_then_popularity() -> None:
         {"title": "Different Title", "release_date": "2001-01-01", "popularity": 100, "vote_count": 1},
     ]
     selected = _select_best_tmdb_match("Example Movie", items, is_tv=False)
+    assert selected is not None  # nosec B101
+    assert selected == items[0]  # nosec B101
+
+
+def test_select_best_book_match_prefers_earliest_for_first_hint() -> None:
+    items: list[dict[str, Any]] = [
+        {
+            "volumeInfo": {
+                "title": "Example",
+                "publishedDate": "2000-01-01",
+                "ratingsCount": 10,
+                "averageRating": 4.5,
+            }
+        },
+        {
+            "volumeInfo": {
+                "title": "Example",
+                "publishedDate": "1990-01-01",
+                "ratingsCount": 5,
+                "averageRating": 4.0,
+            }
+        },
+    ]
+    selected = _select_best_book_match("Example 1", items)
+    assert selected is not None  # nosec B101
+    assert selected == items[1]  # nosec B101
+
+
+def test_select_best_book_match_uses_fuzzy_score_then_ratings() -> None:
+    items: list[dict[str, Any]] = [
+        {
+            "volumeInfo": {
+                "title": "Example Book",
+                "publishedDate": "2000-01-01",
+                "ratingsCount": 1,
+                "averageRating": 3.0,
+            }
+        },
+        {
+            "volumeInfo": {
+                "title": "Different Title",
+                "publishedDate": "2001-01-01",
+                "ratingsCount": 100,
+                "averageRating": 4.9,
+            }
+        },
+    ]
+    selected = _select_best_book_match("Example Book", items)
     assert selected is not None  # nosec B101
     assert selected == items[0]  # nosec B101

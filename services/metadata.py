@@ -3,7 +3,7 @@ import re
 from typing import Any, cast
 
 import requests
-from rapidfuzz import fuzz, process
+from rapidfuzz import fuzz
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY") or ""
 GOOGLE_BOOKS_API_URL = "https://www.googleapis.com/books/v1/volumes"
@@ -101,6 +101,86 @@ def _select_best_tmdb_match(
         c["score"] = fuzz.WRatio(norm_q, _normalize(c["title"]))
 
     candidates.sort(key=lambda c: (c["score"], c["vote_count"], c["popularity"]), reverse=True)
+    return cast(dict[str, Any], candidates[0]["item"])
+
+
+def _get_book_fields(item: dict[str, Any]) -> dict[str, Any]:
+    vi = cast(dict[str, Any], item.get("volumeInfo") or {})
+    title_val = vi.get("title") or ""
+    title = _clean_title(str(title_val))
+    year = _parse_year(vi.get("publishedDate"))
+    ratings_count = cast(int, vi.get("ratingsCount") or 0)
+    avg_rating = cast(float, vi.get("averageRating") or 0.0)
+    return {
+        "title": title,
+        "year": year,
+        "ratings_count": ratings_count,
+        "avg_rating": avg_rating,
+    }
+
+
+def _select_best_book_match(query: str, items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Choose the best Google Books result using fuzzy matching and heuristics.
+
+    Heuristics mirror TMDB selection:
+    - If query hints the first installment (generic '1'/'first' without explicit part words),
+      prefer earliest published date among candidates matching base tokens.
+    - Otherwise, use WRatio against cleaned title; break ties by ratingsCount and averageRating.
+    """
+    if not items:
+        return None
+
+    candidates: list[dict[str, Any]] = []
+    for it in items:
+        fields = _get_book_fields(it)
+        candidates.append({"item": it, **fields})
+
+    if _has_generic_first_hint(query):
+        q = _normalize(query)
+        base_tokens = [
+            t
+            for t in re.findall(r"\w+", q)
+            if t
+            not in {
+                "1",
+                "1st",
+                "first",
+                "one",
+                "part",
+                "episode",
+                "season",
+                "volume",
+                "book",
+                "chapter",
+                "film",
+                "movie",
+                "tv",
+            }
+            and not t.isdigit()
+        ]
+
+        def contains_all_tokens(title: str) -> bool:
+            t = _normalize(title)
+            return all(bt in t for bt in base_tokens) if base_tokens else True
+
+        scoped = [c for c in candidates if contains_all_tokens(c["title"])] or candidates
+        scoped.sort(
+            key=lambda c: (
+                c["year"] if c["year"] is not None else 10**9,
+                -c["ratings_count"],
+                -c["avg_rating"],
+            )
+        )
+        return cast(dict[str, Any], scoped[0]["item"])
+
+    norm_q = _normalize(_clean_title(query))
+    for c in candidates:
+        c["score"] = fuzz.WRatio(norm_q, _normalize(c["title"]))
+
+    candidates.sort(
+        key=lambda c: (c["score"], c["ratings_count"], c["avg_rating"]),
+        reverse=True,
+    )
     return cast(dict[str, Any], candidates[0]["item"])
 
 
@@ -213,17 +293,8 @@ def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]
         items = cast(list[dict[str, Any]], res.get("items") or [])
 
         if items:
-            # RapidFuzz returns a tuple: (choice, score, index). Types can be dynamic; cast for mypy.
-            best_match = cast(
-                tuple[dict[str, Any], float, int] | None,
-                process.extractOne(
-                    query=title,
-                    choices=items,
-                    processor=get_book_title,
-                    scorer=fuzz.WRatio,
-                ),
-            )
-            selected: dict[str, Any] = best_match[0] if best_match else items[0]
+            # Apply the same fuzzy/heuristic logic as movies/TV
+            selected = _select_best_book_match(refined, items) or items[0]
             authors_val: Any = selected.get("volumeInfo", {}).get("authors", [])
             if not isinstance(authors_val, list):
                 authors_list: list[str] = []

@@ -82,3 +82,6 @@ dmypy.json
 # Project specific
 media/
 uploads/
+
+# Ignore this file
+AGENTS.md
