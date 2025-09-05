@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Any, cast
+from typing import Any
 
 import requests
 from rapidfuzz import fuzz
@@ -16,7 +16,6 @@ def _clean_title(text: str) -> str:
 
 
 def _normalize(text: str) -> str:
-    """Lowercase and strip extra spaces for fuzzy matching."""
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
@@ -28,17 +27,30 @@ def _parse_year(value: object | None) -> int | None:
         return int(str(value)[:4])
     except Exception:
         return None
+    
+
+def _refine_query(title: str) -> str:
+    """Lightly normalize user input for downstream APIs."""
+    # Strip trailing parentheticals and common noise words
+    t = _clean_title(title)
+    # Collapse multiple spaces
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
 
 
 def _has_generic_first_hint(query: str) -> bool:
     """Detect queries like 'series 1', '1', 'first' without explicit 'part'."""
     q = _normalize(query)
+
     tokens = set(re.findall(r"\w+", q))
     explicit_part_words = {"part", "episode", "season", "volume", "book", "chapter"}
+
     if tokens & explicit_part_words:
         return False
+    
     first_words = {"1", "1st", "first", "one"}
     roman_first = {"i"}
+    
     return bool((tokens & first_words) or (tokens & roman_first))
 
 
@@ -93,7 +105,7 @@ def _select_best_tmdb_match(
 
         scoped = [c for c in candidates if contains_all_tokens(c["title"])] or candidates
         scoped.sort(key=lambda c: (c["year"] if c["year"] is not None else 10**9, -c["popularity"]))
-        return cast(dict[str, Any], scoped[0]["item"])
+        return scoped[0]["item"]
 
     # Otherwise choose by fuzzy score then popularity
     norm_q = _normalize(_clean_title(query))
@@ -101,16 +113,36 @@ def _select_best_tmdb_match(
         c["score"] = fuzz.WRatio(norm_q, _normalize(c["title"]))
 
     candidates.sort(key=lambda c: (c["score"], c["vote_count"], c["popularity"]), reverse=True)
-    return cast(dict[str, Any], candidates[0]["item"])
+    
+    return candidates[0]["item"]
 
 
 def _get_book_fields(item: dict[str, Any]) -> dict[str, Any]:
-    vi = cast(dict[str, Any], item.get("volumeInfo") or {})
-    title_val = vi.get("title") or ""
-    title = _clean_title(str(title_val))
-    year = _parse_year(vi.get("publishedDate"))
-    ratings_count = cast(int, vi.get("ratingsCount") or 0)
-    avg_rating = cast(float, vi.get("averageRating") or 0.0)
+    book_object = item.get("volumeInfo")
+    book = book_object if isinstance(book_object, dict) else {}
+
+    raw_title = book.get("title")
+    title = _clean_title(str(raw_title)) if raw_title is not None else ""
+
+    year = _parse_year(book.get("publishedDate"))
+
+    raw_rating_count = book.get("ratingsCount")
+    if isinstance(raw_rating_count, (int, float)):
+        ratings_count = int(raw_rating_count)
+    elif isinstance(raw_rating_count, str):
+        try:
+            ratings_count = int(float(raw_rating_count))
+        except ValueError:
+            ratings_count = 0
+    else:
+        ratings_count = 0
+        
+    raw_average_rating = book.get("averageRating")
+    try:
+        avg_rating = float(raw_average_rating) if raw_average_rating is not None else 0.0
+    except (TypeError, ValueError):
+        avg_rating = 0.0
+
     return {
         "title": title,
         "year": year,
@@ -171,7 +203,7 @@ def _select_best_book_match(query: str, items: list[dict[str, Any]]) -> dict[str
                 -c["avg_rating"],
             )
         )
-        return cast(dict[str, Any], scoped[0]["item"])
+        return scoped[0]["item"]
 
     norm_q = _normalize(_clean_title(query))
     for c in candidates:
@@ -181,17 +213,8 @@ def _select_best_book_match(query: str, items: list[dict[str, Any]]) -> dict[str
         key=lambda c: (c["score"], c["ratings_count"], c["avg_rating"]),
         reverse=True,
     )
-    return cast(dict[str, Any], candidates[0]["item"])
 
-
-def _refine_query(title: str) -> str:
-    """Lightly normalize user input for downstream APIs."""
-    # Strip trailing parentheticals and common noise words
-    t = _clean_title(title)
-    # Collapse multiple spaces
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
-
+    return candidates[0]["item"]
 
 def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
     try:
@@ -205,11 +228,11 @@ def fetch_movie_metadata(title: str, year: int | None = None) -> dict[str, str]:
         if year is not None:
             params["year"] = year
 
-        res = cast(
-            dict[str, Any],
-            requests.get(f"{TMDB_API_URL}/search/movie", params=params, timeout=30).json(),
-        )
-        items = cast(list[dict[str, Any]], res.get("results") or [])
+        res_json: Any = requests.get(
+            f"{TMDB_API_URL}/search/movie", params=params, timeout=30
+        ).json()
+        results_field = res_json.get("results") if isinstance(res_json, dict) else None
+        items: list[dict[str, Any]] = [i for i in (results_field or []) if isinstance(i, dict)]
 
         if items:
             selected = _select_best_tmdb_match(refined, items, is_tv=False) or items[0]
@@ -243,11 +266,11 @@ def fetch_tv_metadata(title: str, year: int | None = None) -> dict[str, str]:
         if year is not None:
             params["year"] = year
 
-        res = cast(
-            dict[str, Any],
-            requests.get(f"{TMDB_API_URL}/search/tv", params=params, timeout=30).json(),
-        )
-        items = cast(list[dict[str, Any]], res.get("results") or [])
+        res_json: Any = requests.get(
+            f"{TMDB_API_URL}/search/tv", params=params, timeout=30
+        ).json()
+        results_field = res_json.get("results") if isinstance(res_json, dict) else None
+        items: list[dict[str, Any]] = [i for i in (results_field or []) if isinstance(i, dict)]
 
         if items:
             selected = _select_best_tmdb_match(refined, items, is_tv=True) or items[0]
@@ -286,30 +309,25 @@ def fetch_book_metadata(title: str, author: str | None = None) -> dict[str, str]
     try:
         refined = _refine_query(title)
         q = refined if not author else f"{refined} inauthor:{author}"
-        res = cast(
-            dict[str, Any],
-            requests.get(GOOGLE_BOOKS_API_URL, params={"q": q}, timeout=30).json(),
-        )
-        items = cast(list[dict[str, Any]], res.get("items") or [])
+        res_json: Any = requests.get(
+            GOOGLE_BOOKS_API_URL, params={"q": q}, timeout=30
+        ).json()
+        items_field = res_json.get("items") if isinstance(res_json, dict) else None
+        items: list[dict[str, Any]] = [i for i in (items_field or []) if isinstance(i, dict)]
 
         if items:
             # Apply the same fuzzy/heuristic logic as movies/TV
             selected = _select_best_book_match(refined, items) or items[0]
-            authors_val: Any = selected.get("volumeInfo", {}).get("authors", [])
-            if not isinstance(authors_val, list):
-                authors_list: list[str] = []
-            else:
-                authors_list = [str(a) for a in authors_val]
+            vi_obj = selected.get("volumeInfo")
+            vi = vi_obj if isinstance(vi_obj, dict) else {}
+            authors_val = vi.get("authors")
+            authors_list: list[str] = [str(a) for a in authors_val] if isinstance(authors_val, list) else []
             joined_authors = ", ".join(authors_list)
             return {
-                "title": _clean_title(
-                    str(selected.get("volumeInfo", {}).get("title", refined))
-                ),
+                "title": _clean_title(str(vi.get("title") or refined)),
                 "author": joined_authors,
-                "description": str(
-                    selected.get("volumeInfo", {}).get("description", "")
-                ),
-                "year": str(selected.get("volumeInfo", {}).get("publishedDate", "")),
+                "description": str(vi.get("description", "")),
+                "year": str(vi.get("publishedDate", "")),
             }
         # No results: return a typed, consistent fallback
         return {"title": refined, "author": "", "description": "", "year": ""}
