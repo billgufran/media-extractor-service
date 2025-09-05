@@ -55,7 +55,7 @@ async def extract_info(
     if isinstance(llm_result, ErrorResponse):
         return JSONResponse(status_code=500, content=llm_result)
 
-    # Metadata Lookup
+    # Metadata enrichment
     metadatas: list[dict[str, str]] = []
     for item_data in llm_result:
         try:
